@@ -1,0 +1,78 @@
+# README
+# Crude notes about how this interpreter works.
+
+This interpreter uses a call stack that works as follows.
+
+Let's say we evaluate an expression E. If it's atomic, then we evaluate it and
+return its value. If it's composite (i.e. a list), then we evaluate all its
+elements, then treat it as a function call.
+
+Subexpressions that need evaluated go up the stack.  E.g.
+
+    (+ 1 2)
+
+First, we evaluate +. We put a placeholder in its place ($$) and push the
+subexpression + on the stack:
+
+    ($$ 1 2) +
+
+Now we evaluate that subexpression. + is a symbol, which is looked up as a
+name, which refers to the built-in function <+>. We put that back and get the
+next element ready for evaluation:
+
+    (<lambda:+> $$ 2) 1
+
+    (<lambda:+> 1 $$) 2
+
+    (<lambda:+> 1 2)
+
+Now we are done, and the whole expression can be evaluated. In this case, it's
+a call to a built-in function. The result is 3.
+
+    => 3
+
+If we apply a user-defined function, things look different. Let's say we have
+this function:
+
+    (define twice (lambda (x) (* x 2)))
+
+First steps look the same:
+
+    (twice 3)
+    ($$ 3) twice
+    (<lambda:twice> $$) 3
+    (<lambda:twice> 3)      ;; ready to apply
+
+But when we apply the lambda, we do the following:
+
+1. We create a new environment with as parent, the environment the lambda was
+defined in.
+2. In that new environment, we bind parameters to the values passed. (In this
+case, x = 3)
+3. We substitute the function call with the lambda body, associated with this
+new environment.  (In other words, the lambda body (* x 2) will be evaluated
+in an environment that has x=3.)
+
+So:
+
+    (* x 2)
+    ($$ x 2) *
+    (<lambda:*> $$ 2) x
+    (<lambda:*> 3 $$) 2
+    (<lambda:*> 3 2)      ;; ready to apply
+
+Here's another function application... but this one is built-in, so there are
+no more substitutions to be done:
+
+    => 6
+
+Special forms have different evaluation rules. Internally, the sf_next()
+function determines which elements have to be evaluated, and sf_apply()
+handles the actual application (e.g. define a variable, create a Lambda
+instance, etc).
+
+sf_apply() is also the place where tail recursion is handled. Currently only
+for BEGIN and IF; later, other special forms may follow. According to R*RS,
+the last expression inside a lambda body is also in tail position, but in our
+implementation lambda bodies can only contain one expression, so it doesn't
+apply here. (For multiple expressions use BEGIN, which *does* use TCO.)
