@@ -146,16 +146,6 @@ class Environment:
 def with_name(f, name):
     f.name = name
     return f        
-        
-def create_toplevel_env():
-    env = Environment()
-    env.bind('+', with_name(lambda x, y: x+y, '+'))
-    env.bind('-', with_name(lambda x, y: x-y, '-'))
-    env.bind('*', with_name(lambda x, y: x*y, '*'))
-    env.bind('=', with_name(lambda x, y: x==y, '='))
-    env.bind('list', with_name(lambda *args: list(args), 'list'))
-    env.bind('magic', 42) # pre-defined variable
-    return env
     
 class Frame:
     def __init__(self, expr, env):
@@ -175,6 +165,10 @@ class Lambda:
     # since we change expression in-place elsewhere, this should always be
     # a fresh copy w/o dependencies
     # alternatively, we could try to *not* change things in-place. :-}
+    
+class Continuation:
+    def __init__(self, stack):
+        self.stack = copy.deepcopy(stack)
     
 PLACEHOLDER = 42j
 SPECIAL_FORMS = ["begin", "define", "if", "lambda"]
@@ -244,9 +238,20 @@ class BatchInterpreter:
     
     def __init__(self):
         self._call_stack = []
-        self._env = create_toplevel_env()
+        self._env = self._create_toplevel_env()
         self._num_calls = 0
         self._max_depth = 0
+
+    def _create_toplevel_env(self):
+        env = Environment()
+        env.bind('+', with_name(lambda x, y: x+y, '+'))
+        env.bind('-', with_name(lambda x, y: x-y, '-'))
+        env.bind('*', with_name(lambda x, y: x*y, '*'))
+        env.bind('=', with_name(lambda x, y: x==y, '='))
+        env.bind('list', with_name(lambda *args: list(args), 'list'))
+        env.bind('call/cc', with_name(lambda f: self._call_cc(f), 'call/cc'))
+        env.bind('magic', 42) # pre-defined variable
+        return env
     
     def run(self):
         """ Execute the next step in the evaluation process. If we're done with
@@ -289,8 +294,12 @@ class BatchInterpreter:
                     # takes one expression... but BEGIN will have TCO, yes?
                     return None
                 else:
+                    # built-in function
                     value = self._apply(expr, frame.env) # VERIFY env
-                    return self._collapse(value)
+                    if value is None:
+                        return None # used for call/cc stack manipulation
+                    else:
+                        return self._collapse(value)
                 
             if expr[0] in SPECIAL_FORMS:
                 plpos = sf_next(expr, 1)
@@ -388,4 +397,23 @@ class BatchInterpreter:
         
     def call_stack_repr(self):
         return " ".join(f.lisp_repr() for f in self._call_stack)
+        
+    def _call_cc(self, f):
+        assert isinstance(f, Lambda) # only lambdas for now
+        assert len(f.params()) == 1
+        cont = Continuation(self._call_stack)
+        
+        # we push the body of the lambda with its argument bound to the
+        # continuation...
+
+        # XXX duplicate code, sort of
+        newenv = Environment(parent=f.env)
+        # assign variable
+        newenv.bind(f.params()[0], cont)
+        newframe = Frame(expr=f.body(), env=newenv)
+        # then evaluate lambda body in that env!
+        self._call_stack.pop()
+        self._call_stack.append(newframe)
+
+        return None
         
