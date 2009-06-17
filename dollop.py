@@ -403,17 +403,21 @@ class BatchInterpreter:
         assert len(f.params()) == 1
         cont = Continuation(self._call_stack)
         
-        # we push the body of the lambda with its argument bound to the
+        # define a new built-in function that simulates calling of the
         # continuation...
+        def g(x):
+            self._call_stack = copy.deepcopy(cont.stack)
+            return x
 
-        # XXX duplicate code, sort of
+        # XXX duplicate code, sort of (lambda expansion)
         newenv = Environment(parent=f.env)
         # assign variable
-        newenv.bind(f.params()[0], cont)
+        newenv.bind(f.params()[0], with_name(g, "<cont>"))
         newframe = Frame(expr=f.body(), env=newenv)
         # then evaluate lambda body in that env!
         self._call_stack.pop()
         self._call_stack.append(newframe)
 
+        # we just manipulate the call stack, but don't return a value
         return None
         
