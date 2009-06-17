@@ -76,3 +76,45 @@ for BEGIN and IF; later, other special forms may follow. According to R*RS,
 the last expression inside a lambda body is also in tail position, but in our
 implementation lambda bodies can only contain one expression, so it doesn't
 apply here. (For multiple expressions use BEGIN, which *does* use TCO.)
+
+#
+# CONTINUATIONS
+
+Work like this:
+
+(+ 1 (call/cc (lambda (k) (+ 2 (k 3)))))
+($$ 1 (call/cc ...)) +
+(<+> $$ (call/cc ...)) 1
+(<+> 1 $$) (call/cc (lambda (k) (+ 2 (k 3))))
+(<+> 1 $$) ($$ (lambda (k) (+ 2 (k 3)))) call/cc
+(<+> 1 $$) (<call/cc> $$) (lambda (k) (+ 2 (k 3)))
+(<+> 1 $$) (<call/cc> $$) <lambda>
+(<+> 1 $$) (<call/cc> <lambda>)
+
+At this point, we execute (<call/cc> <lambda>)...
+
+Now what? 
+- We create a continuation (i.e. a snapshot of the current stack)
+- We create a function that takes an argument x, and that, when called, restores
+  the call stack to the snapshot stored in the continuation, and then returns x
+- We replace the (<call/cc> <lambda>) with the lambda body, associated
+  with an environment which has the lambda's variable bound to said function
+
+(<+> 1 $$) (+ 2 (k 3))    with k = {continuation}
+(<+> 1 $$) ($$ 2 (k 3)) +
+(<+> 1 $$) (<+> $$ (k 3)) 2
+(<+> 1 $$) (<+> 2 $$) (k 3)
+(<+> 1 $$) (<+> 2 $$) ($$ 3) k
+(<+> 1 $$) (<+> 2 $$) ({cont} $$) 3
+(<+> 1 $$) (<+> 2 $$) ({cont} 3)
+
+At this point, we're ready to call (k 3). As said, it restores the stack to
+the way it was, then collapses the value 3. So:
+
+(<+> 1 $$) 3
+(<+> 1 3)
+=> 4
+
+The other, partially evaluated expressions, DO NOT MATTER as soon as we call
+(k 3). 
+

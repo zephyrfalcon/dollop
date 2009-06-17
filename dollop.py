@@ -39,8 +39,7 @@ TODO:
 - Rewrite some parts in a more functional style, esp. where we change
   expressions in place (placeholder etc).  Instead, we may be able to
   just use a new expression.  That way, we won't have to use copy.deepcopy...
-- Add a few more special forms like AND and OR
-- Continuations?
+- Add a few more special forms like QUOTE, AND and OR
 
 """
 
