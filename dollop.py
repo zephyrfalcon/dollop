@@ -33,6 +33,8 @@ And these built-in functions:
 (* a b)
 (list ...exprs...)
 (= a b)
+(call/cc <lambda>)
+(eval expr)
 
 TODO:
 
@@ -40,7 +42,6 @@ TODO:
   expressions in place (placeholder etc).  Instead, we may be able to
   just use a new expression.  That way, we won't have to use copy.deepcopy...
 - Add a few more special forms like AND and OR
-- Continuations?
 
 """
 
@@ -171,7 +172,7 @@ class Continuation:
         self.stack = copy.deepcopy(stack)
     
 PLACEHOLDER = 42j
-SPECIAL_FORMS = ["begin", "define", "if", "lambda"]
+SPECIAL_FORMS = ["begin", "define", "if", "lambda", "quote"]
 
 def sf_apply(expr, env):
     """ Apply the special form.  Return a 2-tuple (result, done).  If done is 
@@ -198,6 +199,9 @@ def sf_apply(expr, env):
     if spname == 'lambda':
         l = Lambda(expr[1], expr[2], env)
         return l, True
+        
+    if spname == 'quote':
+        return expr[1], True
     
     raise NotImplementedError("sf_apply: %s" % expr)
 
@@ -228,7 +232,7 @@ def sf_next(expr, plpos):
         else:
             return -1
             
-    elif spname == 'lambda':
+    elif spname in ('lambda', 'quote'):
         return -1 # don't evaluate anything
         
     else:
@@ -249,7 +253,8 @@ class BatchInterpreter:
         env.bind('*', with_name(lambda x, y: x*y, '*'))
         env.bind('=', with_name(lambda x, y: x==y, '='))
         env.bind('list', with_name(lambda *args: list(args), 'list'))
-        env.bind('call/cc', with_name(lambda f: self._call_cc(f), 'call/cc'))
+        env.bind('call/cc', with_name(lambda f: self.s_call_cc(f), 'call/cc'))
+        env.bind('eval', with_name(lambda e: self.s_eval(e), 'eval'))
         env.bind('magic', 42) # pre-defined variable
         return env
     
@@ -311,6 +316,9 @@ class BatchInterpreter:
                     return None
                 else:
                     frame.done = True
+                    # XXX we're basically taking an extra turn here for
+                    # special forms... doesn't matter for the proof-of-concept,
+                    # but something to keep in mind for later.
                     return None
 
             # non-empty list: special form or function call
@@ -398,7 +406,7 @@ class BatchInterpreter:
     def call_stack_repr(self):
         return " ".join(f.lisp_repr() for f in self._call_stack)
         
-    def _call_cc(self, f):
+    def s_call_cc(self, f):
         assert isinstance(f, Lambda) # only lambdas for now
         assert len(f.params()) == 1
         cont = Continuation(self._call_stack)
@@ -420,4 +428,14 @@ class BatchInterpreter:
 
         # we just manipulate the call stack, but don't return a value
         return None
+        
+    def s_eval(self, expr):
+        env = self._call_stack[-1].env
+        newframe = Frame(expr=expr, env=env)
+        self._call_stack.pop()
+        self._call_stack.append(newframe)
+        return None
+        
+    def s_apply(self, f, args):
+        pass
         

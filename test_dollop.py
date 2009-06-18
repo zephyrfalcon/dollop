@@ -73,7 +73,13 @@ class TestDollop(unittest.TestCase):
         self.assertEquals(bi.eval("(call/cc (lambda (k) (+ 1 (k 2))))"), 2)
         self.assertEquals(bi.eval("(+ 3 (call/cc (lambda (k) (+ 1 (k 2)))))"), 
           5)
-        
+          
+        # quote
+        self.assertEquals(bi.eval("(quote x)"), "x")
+        self.assertEquals(bi.eval("(quote (1 2 3))"), [1, 2, 3])
+          
+        # eval/apply
+        self.assertEquals(bi.eval("(eval (quote (+ 10 20)))"), 30)
         
     def test_eval_lambda(self):
         bi = dollop.BatchInterpreter()
