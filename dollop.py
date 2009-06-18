@@ -41,7 +41,11 @@ TODO:
 - Rewrite some parts in a more functional style, esp. where we change
   expressions in place (placeholder etc).  Instead, we may be able to
   just use a new expression.  That way, we won't have to use copy.deepcopy...
+<<<<<<< HEAD:dollop.py
 - Add a few more special forms like AND and OR
+=======
+- Add a few more special forms like QUOTE, AND and OR
+>>>>>>> 5a9d5ec3aa4a34adf12a70c82beb107993e8e82c:dollop.py
 
 """
 
