@@ -80,6 +80,8 @@ class TestDollop(unittest.TestCase):
           
         # eval/apply
         self.assertEquals(bi.eval("(eval (quote (+ 10 20)))"), 30)
+        self.assertEquals(bi.eval("(apply + (quote (1 2)))"), 3)
+        self.assertEquals(bi.eval("(apply + (list 3 magic))"), 45)
         
     def test_eval_lambda(self):
         bi = dollop.BatchInterpreter()

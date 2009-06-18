@@ -25,16 +25,18 @@ We have the following special forms:
 (define name value)
 (if cond e1 e2)
 (lambda (params) body)     [one expr in body]
+(quote expr)               [does not support ' syntax]
 
 And these built-in functions:
 
-(+ a b)
-(- a b)
-(* a b)
-(list ...exprs...)
-(= a b)
+(+ a b)                    [only takes two arguments]
+(- a b)                    [ditto]
+(* a b)                    [ditto]
+(= a b)                    [ditto]
+(list ...exprs...)         [arbitrary number of arguments]
 (call/cc <lambda>)
 (eval expr)
+(apply f args)
 
 TODO:
 
@@ -255,6 +257,7 @@ class BatchInterpreter:
         env.bind('list', with_name(lambda *args: list(args), 'list'))
         env.bind('call/cc', with_name(lambda f: self.s_call_cc(f), 'call/cc'))
         env.bind('eval', with_name(lambda e: self.s_eval(e), 'eval'))
+        env.bind('apply', with_name(lambda f, a: self.s_apply(f, a), 'apply'))
         env.bind('magic', 42) # pre-defined variable
         return env
     
@@ -437,5 +440,11 @@ class BatchInterpreter:
         return None
         
     def s_apply(self, f, args):
-        pass
+        print(">>apply: call stack is: ", self.call_stack_repr())
+        expr = [f] + args # already evaluated
+        newframe = Frame(expr=expr, env=self._env)
+        newframe.done = True
+        self._call_stack.pop() # remove (apply ...) expression
+        self._call_stack.append(newframe) # replace with (f ...args...)
+        return None
         
